@@ -1,9 +1,15 @@
+/*
+A horrendously simplistic Tic-Tac-Toe written in ANSI C for use in Linux terminals
+by ArtisanLRO
+@MIT License
+*/
 #include <stdio.h>
 #include <unistd.h>
 #include <termios.h>
 #include <stdlib.h>
 #include <stdbool.h>
 
+// For keyhandler logic
 char getch(void)
 {
     char buf = 0;
@@ -26,6 +32,7 @@ char getch(void)
     return buf;
 }
 
+// Actual game logic -- all in one messy function
 int game()
 {
     system("clear");
@@ -274,6 +281,7 @@ int game()
 	return 0;
 }
 
+// To allow game to loop
 int main() {
     while(1) {
         game();
