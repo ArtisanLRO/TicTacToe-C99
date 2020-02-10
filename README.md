@@ -2,6 +2,8 @@
 
 A horrendously simplistic Tic-Tac-Toe written in ANSI C for use in Linux terminals. Written to apply memory management, pointers and structures and basic C knowledge in preparation for CSSE2310.
 
+![image](https://i.imgur.com/i7gc3MM.png)
+
 ## Installation Commands
 ```
 git clone https://github.com/ArtisanLRO/TicTacToe-C99
