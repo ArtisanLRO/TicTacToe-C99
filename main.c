@@ -4,10 +4,12 @@ by ArtisanLRO
 @MIT License
 */
 #include <stdio.h>
-#include <unistd.h>
-#include <termios.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <string.h>
+#include <unistd.h>
+#include <termios.h>
+#include <math.h>
 
 #define BOARD_SIZE 3
 
@@ -34,9 +36,28 @@ char getch(void)
     return buf;
 }
 
+// A structure that contains necessary game data.
+struct gameState 
+{
+    char* board;
+    char currentPlayer;
+    char lastPlayer;
+    char playerFirst;
+    char playerSecond;
+    int turnCount;
+    int cursorX;
+    int cursorY;
+    bool cursorHidden;
+    bool illegalMove;
+};
+
 // Set the current item in a given board position.
 void setGridItem(char* board, int x, int y, char item) {
     *(board + y * BOARD_SIZE + x) = item; 
+}
+
+void setGridItemByIndex(char* board, int i, char item) {
+    *(board + i) = item; 
 }
 
 // Show the current item in a given board position.
@@ -44,12 +65,166 @@ char getGridItem(char* board, int x, int y) {
     return *(board + y * BOARD_SIZE + x);
 }
 
+void writeData(struct gameState state) {
+    
+    FILE * datFile;
+
+    datFile = fopen ("./save.dat", "w+");
+    fprintf(datFile, "[TicTacToe-C99 Save Data]\n");
+
+    fprintf(datFile, "%d\n", BOARD_SIZE * BOARD_SIZE);
+
+    fprintf(datFile, "%d\n", state.turnCount);
+
+    for (int y = 0; y < BOARD_SIZE; y++) {
+        for (int x = 0; x < BOARD_SIZE; x++) {
+            fprintf(datFile, "%c", getGridItem(state.board, x, y));
+        }
+    }
+
+    fprintf(datFile, "\n");
+
+    fprintf(datFile, "%c", state.currentPlayer);
+    fprintf(datFile, "%c", state.lastPlayer);
+    fprintf(datFile, "%c", state.playerFirst);
+    fprintf(datFile, "%c", state.playerSecond);
+    fprintf(datFile, "%d", state.cursorHidden);
+    fprintf(datFile, "%d", state.illegalMove);
+
+    fclose(datFile);
+
+    printf("\n\nGame saved to file.");
+}
+
+void readData(struct gameState state)
+{
+    // Start from the first line on the first iteration.
+    int i = 0;
+
+    // Maximum line length of 150.
+    char line[150];
+    FILE * datFile = fopen("save.dat", "r");
+
+    bool validHeader;
+    bool validMapSize;
+    bool validMapContents;
+    bool validParameters;
+    
+    int mapSize;
+
+    while (1) {
+        // If end of file has not yet been reached, continue.
+        if (fgets(line, 150, datFile) == NULL) break;
+        i++;
+
+        switch(i) {
+            // On the first iteration, verify that line is equal
+            // through a string compare.
+            case 1:
+                if (strcmp(line, "[TicTacToe-C99 Save Data]")) {
+                    //printf("\n\nSave file header is valid.");
+                    validHeader = true;
+                }
+                break;
+            // We parse the next line and pass it as an integer.
+            // Check if map size is a valid square.
+            case 2:
+                ;
+                mapSize = atoi(line);
+                
+                float testFloat = sqrt((double)mapSize);
+                int testInt = testFloat;
+
+                if (testFloat == testInt) {
+                    //printf("\nMap size is %d squares. Valid.", mapSize);
+                    validMapSize = true;
+                }
+                else {
+                    //printf("\nMap size is %d squares. Invalid.", mapSize);
+                }
+                break;
+            case 3:
+                ;
+                int turnCount = atoi(line);
+                state.turnCount = turnCount;
+
+                //printf("%d : Turn Count ", turnCount);
+                break;
+            case 4:
+                ;
+                int mapLineLength = strlen(line);
+                if (mapSize == mapLineLength - 1) {
+                    //printf("\nMap line length and size are equal.");
+                    validMapContents = true;
+
+                    // Note, this don't bother to check map integrity.
+                    // This just loads stuff into the map.
+                    size_t c = 0;
+                    while (line[c] != '\0') {
+                        printf("%c", line[c]);
+                        setGridItemByIndex(state.board, c, line[c]);
+                        c++;
+                    }
+                }
+                break;
+            case 5:
+                ;
+                int gameParameters = strlen(line);
+                if (gameParameters == 6) {
+                    //printf("\nGame parameters line length looks okay.");
+                    validParameters = true;
+
+                    size_t c = 0;
+                    while (line[c] != '\0') {
+                        c++;
+                        switch(c) {
+                            case 1:
+                                state.currentPlayer = line[c];
+                                break;
+                            case 2:
+                                state.lastPlayer = line[c];
+                                break;
+                            case 3:
+                                state.playerFirst = line[c];
+                                break;
+                            case 4:
+                                state.playerSecond = line[c];
+                                break;
+                            case 5:
+                                state.cursorHidden = line[c];
+                                break;
+                            case 6:
+                                state.illegalMove = line[c];
+                                break;
+                            default:
+                                ;
+                        }
+                    }
+                }
+                break;
+            default:
+                ;
+        }
+
+    }
+    if (validHeader && validMapSize && validMapContents && validParameters) {
+        if (mapSize == BOARD_SIZE) {
+            printf("\n\nGame loaded from save.");
+        }
+        else {
+            printf("\n\nMap size mismatch. Rebuild program with proper dimensions.");
+        }
+    }
+
+    //printf("%d %d %d %d", validHeader, validMapSize, validMapContents, validParameters);
+    fclose(datFile);
+}   
+
 // Display the game board in the terminal.
 void renderBoard(char* board, int cursorX, int cursorY, bool cursorHidden) {
-    int x, y;
     
-    for (y = 0; y < BOARD_SIZE; y++) {
-        for (x = 0; x < BOARD_SIZE; x++) {\
+    for (int y = 0; y < BOARD_SIZE; y++) {
+        for (int x = 0; x < BOARD_SIZE; x++) {\
             if (!cursorHidden && cursorX == x && cursorY == y) {
                 // If the player cursor is here, render the cursor.
                 printf("█ ");
@@ -67,10 +242,9 @@ void renderBoard(char* board, int cursorX, int cursorY, bool cursorHidden) {
 
 // Check for adjacent verticals.
 bool victoryVertical(char* board) {
-    int x, y;
     
-    for (y = 0; y < BOARD_SIZE; y++) {
-        for (x = 0; x < BOARD_SIZE; x++) {
+    for (int y = 0; y < BOARD_SIZE; y++) {
+        for (int x = 0; x < BOARD_SIZE; x++) {
             if (y > 0 && y != BOARD_SIZE-1) {
                 if (getGridItem(board, x, y) != '.' &&
                         getGridItem(board, x, y) == getGridItem(board, x, y+1) && 
@@ -86,10 +260,9 @@ bool victoryVertical(char* board) {
 
 // Check for adjacent horizontals.
 bool victoryHorizontal(char* board) {
-    int x, y;
 
-    for (y = 0; y < BOARD_SIZE; y++) {
-        for (x = 0; x < BOARD_SIZE; x++) {
+    for (int y = 0; y < BOARD_SIZE; y++) {
+        for (int x = 0; x < BOARD_SIZE; x++) {
             if (x > 0 && x != BOARD_SIZE-1) {
                 if (getGridItem(board, x, y) != '.' &&
                         getGridItem(board, x, y) == getGridItem(board, x+1, y) && 
@@ -105,11 +278,11 @@ bool victoryHorizontal(char* board) {
 
 // Check for adjacent diagonals.
 bool victoryDiagonal(char* board) {
-    int x, y, counter;
+    int counter;
     char charBeingChecked;
     
-    for (y = 0; y < BOARD_SIZE; y++) {
-        for (x = 0; x < BOARD_SIZE; x++) {
+    for (int y = 0; y < BOARD_SIZE; y++) {
+        for (int x = 0; x < BOARD_SIZE; x++) {
                 charBeingChecked = getGridItem(board, x, y);
             if (charBeingChecked != '.' && 
                     (x > 0 && x != BOARD_SIZE-1) && y > 0 && y != BOARD_SIZE-1) {
@@ -129,10 +302,9 @@ bool victoryDiagonal(char* board) {
 }
 
 bool victoryImpossible(char* board) {
-    int x, y;
 
-    for (y = 0; y < BOARD_SIZE; y++) {
-        for (x = 0; x < BOARD_SIZE; x++) {
+    for (int y = 0; y < BOARD_SIZE; y++) {
+        for (int x = 0; x < BOARD_SIZE; x++) {
             if (getGridItem(board, x, y) == '.') {
                 return 0;
             }
@@ -180,73 +352,48 @@ bool victoryHandler(char* board, char lastPlayer) {
     return 0;
 }
 
-// Initialises game logic, then loops till victory or draw condition.
-int game() {
+int printGame(struct gameState state) {
+    // Clear the terminal.
+    system("clear");
 
-    // Player symbols.
-    const char PLAYER_1_CHARACTER = 'X';
-    const char PLAYER_2_CHARACTER = 'O';
+    // Print the header.
+    printf("\nC99 Tic-Tac-Toe by ArtisanLRO");
+    printf("\n--------------------------------\n");
+    
+    // Render the game board.
+    renderBoard(
+        state.board, 
+        state.cursorX, 
+        state.cursorY, 
+        state.cursorHidden);
 
-    // Necessary to record the current player's turn.
-    char currentPlayer = 'X';
-    char lastPlayer;
+    // Listen for game end conditions, end the game if any are true.
+    if (victoryHandler(state.board, state.lastPlayer)) {
+        return 0;
+    }
 
-    // The game starts on the first turn.
-    int turnCount = 1;
+    // Print game details.    
+    printf("\n--------------------------------");
+    printf("\nTurn %d - Player %c's Turn", state.turnCount, state.currentPlayer);
+    
+    if (state.illegalMove) {
+        printf(" - Space Occupied");
+        state.illegalMove = false;
+    }
 
-    // Initialise cursor position.
-    int cursorX, cursorY = 0;
+    printf("\n");
+    printf("\nArrow Keys - NAVIGATE");
+    printf("\nEnter - END TURN");
+    
+    printf("\e[?25l"); // Hide the actual terminal cursor.
 
-    // Status message helpers.
-    bool illegalMove, cursorHidden = false;
+    return 1;
+}
 
-    // Dynamically allocates memory for the square grid of the game board.
-    char *board = (char *)malloc(BOARD_SIZE * BOARD_SIZE * sizeof(char));
-
-    // Initialise the game board with blank space.
-    int x, y; 
-    for (y = 0; y < BOARD_SIZE; y++) {
-        for (x = 0; x < BOARD_SIZE; x++) {
-            setGridItem(board, x, y, '.');
-        }
-    }     
-
+void gameLoop(struct gameState state) {
     // The game loop.
 	while(1) {
-
-        // Clear the terminal.
-        system("clear");
-
-        // Print the header.
-        printf("\nC99 Tic-Tac-Toe by ArtisanLRO");
-        printf("\n--------------------------------\n");
-        
-        // Render the game board.
-        renderBoard(board, cursorX, cursorY, cursorHidden);
-
-        // Listen for game end conditions, end the game if any are true.
-        if (victoryHandler(board, lastPlayer)) {
-            return 1;
-        }
-
-        // Print game details.    
-        printf("\n--------------------------------");
-        printf("\nTurn %d - Player %c's Turn", turnCount, currentPlayer);
-        
-        if (illegalMove) {
-            printf("- Space Occupied");
-            illegalMove = false;
-        }
-
-        printf("\n");
-        printf("\nArrow Keys - NAVIGATE");
-        printf("\nEnter - END TURN");
-        
-        printf("\e[?25l"); // Hide the actual terminal cursor.
-        
-        if (cursorHidden) {
-            cursorHidden = false; // Unhide the game cursor.
-        }
+        printGame(state);
 
         // Keyhandler
         char ch = getch();
@@ -255,41 +402,168 @@ int game() {
         switch(ch) {
             // If on the edges, loop back to the other side of the board.
             case 'A': // Up
-                if (cursorY == 0) cursorY = BOARD_SIZE - 1;
-                else cursorY--;
+                if (state.cursorY == 0) state.cursorY = BOARD_SIZE - 1;
+                else state.cursorY--;
+                state.cursorHidden = false;
                 break;
             case 'B': // Down
-                if (cursorY == BOARD_SIZE - 1) cursorY = 0;
-                else cursorY++;
+                if (state.cursorY == BOARD_SIZE - 1) state.cursorY = 0;
+                else state.cursorY++;
+                state.cursorHidden = false;
                 break;
             case 'C': // Right
-                if (cursorX == BOARD_SIZE - 1) cursorX = 0;
-                else cursorX++;
+                if (state.cursorX == BOARD_SIZE - 1) state.cursorX = 0;
+                else state.cursorX++;
+                state.cursorHidden = false;
                 break;
             case 'D': // Left
-                if (cursorX == 0) cursorX = BOARD_SIZE - 1;
-                else cursorX--;
+                if (state.cursorX == 0) state.cursorX = BOARD_SIZE - 1;
+                else state.cursorX--;
+                state.cursorHidden = false;
+                break;
+            case 'l':
+            case 'L':
+                // Start from the first line on the first iteration.
+                ;
+                int i = 0;
+
+                // Maximum line length of 150.
+                char line[150];
+                FILE * datFile = fopen("save.dat", "r");
+
+                bool validHeader;
+                bool validMapSize;
+                bool validMapContents;
+                bool validParameters;
+
+                int mapSize;
+
+                while (1) {
+                    // If end of file has not yet been reached, continue.
+                    if (fgets(line, 150, datFile) == NULL) break;
+                    i++;
+
+                    switch(i) {
+                        // On the first iteration, verify that line is equal
+                        // through a string compare.
+                        case 1:
+                            if (strcmp(line, "[TicTacToe-C99 Save Data]")) {
+                                printf("\n\nSave file header is valid.");
+                                validHeader = true;
+                            }
+                            break;
+                        // We parse the next line and pass it as an integer.
+                        // Check if map size is a valid square.
+                        case 2:
+                            ;
+                            mapSize = atoi(line);
+                            
+                            float testFloat = sqrt((double)mapSize);
+                            int testInt = testFloat;
+
+                            if (testFloat == testInt) {
+                                printf("\nMap size is %d squares. Valid.", mapSize);
+                                validMapSize = true;
+                            }
+                            else {
+                                printf("\nMap size is %d squares. Invalid.", mapSize);
+                            }
+                            break;
+                        case 3:
+                            ;
+                            int turnCount = atoi(line);
+                            state.turnCount = turnCount;
+
+                            printf("%d : Turn Count ", turnCount);
+                            break;
+                        case 4:
+                            ;
+                            int mapLineLength = strlen(line);
+                            if (mapSize == mapLineLength - 1) {
+                                printf("\nMap line length and size are equal.");
+                                validMapContents = true;
+
+                                // Note, this don't bother to check map integrity.
+                                // This just loads stuff into the map.
+                                size_t c = 0;
+                                while (line[c] != '\0') {
+                                    printf("%c", line[c]);
+                                    setGridItemByIndex(state.board, c, line[c]);
+                                    c++;
+                                }
+                            }
+                            break;
+                        case 5:
+                            ;
+                            int gameParameters = strlen(line);
+                            if (gameParameters == 6) {
+                                printf("\nGame parameters line length looks okay.");
+                                validParameters = true;
+
+                                size_t c = 0;
+                                while (line[c] != '\0') {
+                                    c++;
+                                    switch(c) {
+                                        case 1:
+                                            state.currentPlayer = line[c];
+                                            break;
+                                        case 2:
+                                            state.lastPlayer = line[c];
+                                            break;
+                                        case 3:
+                                            state.playerFirst = line[c];
+                                            break;
+                                        case 4:
+                                            state.playerSecond = line[c];
+                                            break;
+                                        case 5:
+                                            state.cursorHidden = line[c];
+                                            break;
+                                        case 6:
+                                            state.illegalMove = line[c];
+                                            break;
+                                        default:
+                                            ;
+                                    }
+                                }
+                            }
+                            break;
+                        default:
+                            ;
+                    }
+
+                }
+                if (validHeader && validMapSize && validMapContents && validParameters) {
+                    printf("\n\nGame loaded from save.");
+                }
+
+                printf("%d %d %d %d", validHeader, validMapSize, validMapContents, validParameters);
+                fclose(datFile);
+                break;
+            case 's':
+            case 'S':
+                writeData(state);
                 break;
             // Listen for return carriage, when ENTER is pressed.
             case '\n':
-                if (getGridItem(board, cursorX, cursorY) != '.') {
-                    illegalMove = true;
+                if (getGridItem(state.board, state.cursorX, state.cursorY) != '.') {
+                    state.illegalMove = true;
                 }
                 else {
-                    setGridItem(board, cursorX, cursorY, currentPlayer);
+                    setGridItem(state.board, state.cursorX, state.cursorY, state.currentPlayer);
 
                     // Hide the cursor to reflect board change.
-                    cursorHidden = true;
+                    state.cursorHidden = true;
                     
                     // Update game state.
-                    turnCount++;
-                    lastPlayer = currentPlayer;
+                    state.turnCount++;
+                    state.lastPlayer = state.currentPlayer;
 
-                    if (currentPlayer == PLAYER_1_CHARACTER) {
-                        currentPlayer = PLAYER_2_CHARACTER;
+                    if (state.currentPlayer == state.playerFirst) {
+                        state.currentPlayer = state.playerSecond;
                     }
                     else {
-                        currentPlayer = PLAYER_1_CHARACTER;
+                        state.currentPlayer = state.playerFirst;
                     }
                 }
                 break;
@@ -297,17 +571,64 @@ int game() {
                 ; // Do nothing, if not any of arrow keys or ENTER.
         }
     }
-    
-    // Free memory that was dynamically allocated for the board.
-    free(board);
+}
 
-    // Kill game loop.
-	return 0;
+// Initialises game logic, then loops till victory or draw condition.
+int initialiseGame() {
+
+    // Player symbols.
+    char playerFirst = 'X';
+    char playerSecond = 'O';
+
+    // Necessary to record the current player's turn.
+    char currentPlayer = 'X';
+    char lastPlayer = '.';
+
+    // The game starts on the first turn.
+    int turnCount = 0;
+
+    // Initialise cursor position.
+    int cursorX = 0;
+    int cursorY = 0;
+
+    // Status message helpers.
+    bool illegalMove = false;
+    bool cursorHidden = false;
+
+    // Dynamically allocates memory for the square grid of the game board.
+    char *board = (char *)malloc(BOARD_SIZE * BOARD_SIZE * sizeof(char));
+
+    // Initialise the game board with blank space.
+    for (int y = 0; y < BOARD_SIZE; y++) {
+        for (int x = 0; x < BOARD_SIZE; x++) {
+            setGridItem(board, x, y, '.');
+        }
+    }
+
+    // Initialise a game state structure.
+    struct gameState state = {
+        board,
+        currentPlayer,
+        lastPlayer,
+        playerFirst,
+        playerSecond,
+        turnCount,
+        cursorX,
+        cursorY,
+        cursorHidden,
+        illegalMove
+    };    
+
+    // The game loop.
+	gameLoop(state);
+
+    // Free memory dynamically allocated for the game board at end of game.
+    free(board);
 }
 
 // Starts program, loops the game when it ends.
 int main() {
     while(1) {
-        game();
+        initialiseGame();
     }
 }
